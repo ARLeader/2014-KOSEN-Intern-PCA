@@ -10,6 +10,8 @@
 #include <fstream>
 #include <stdio.h>
 
+int MAXIMUM_COMPONENTS_NUMBER = 3;
+
 using namespace cv;
 using namespace std;
 
@@ -57,7 +59,7 @@ Mat loadBatchImages(string filePath)
 	{
 		ifstream fileStream;
 		
-		coAll = Mat::ones(1, 224, CV_8U); //Create a column of 1 for using with concat.
+		coAll = Mat::ones(1, 224, CV_8U); //Create a row of 1 for using with concat.
 		int imgNum = 0;
 
 		fileStream.open(filePath, std::ifstream::in);
@@ -66,7 +68,7 @@ Mat loadBatchImages(string filePath)
 			while (getline(fileStream, line)){
 				vconcat(coAll, readImage(line, 0).reshape(1,1), coAll);
 			}
-			coAll = coAll.rowRange(1, coAll.rows); //Remove first column vector.
+			coAll = coAll.rowRange(1, coAll.rows); //Remove first row vector.
 		}
 		else{
 			cout << "ERROR OPENING FILES";
@@ -90,7 +92,7 @@ void loadBatchImages(const string& filePath, Mat& images, Mat& labels, char sepa
 	{
 		ifstream fileStream;
 		
-		images = Mat::ones(1, 224, CV_8U); //Create a column of 1 for using with concat.
+		images = Mat::ones(1, 224, CV_8U); //Create a row of 1 for using with concat.
 		int imgNum = 0;
 
 		fileStream.open(filePath, std::ifstream::in);
@@ -106,7 +108,7 @@ void loadBatchImages(const string& filePath, Mat& images, Mat& labels, char sepa
 					labels.push_back(atoi(classlabel.c_str()));
 				}
 			}
-			images = images.rowRange(1, images.rows); //Remove first column vector.
+			images = images.rowRange(1, images.rows); //Remove first row vector.
 		}
 		else{
 			cout << "ERROR OPENING FILES";
@@ -148,6 +150,29 @@ void writeMatToFile(Mat matrix,string filePath)
 	}
 }
 
+/*Initialize multiple PCA from given mat and labels*/
+void initMassPCA(Mat faces, vector<int> label,vector<PCA>& pcas)
+{
+	if (faces.rows != label.size())
+		cout << "Data and Label rows not equal.";
+	else
+	{
+		int labelCount = 1, dataStart = 0, faceCount = 0;
+		for (int i = 0; i < label.size(); i++)
+		{
+			if (label.at(i) != labelCount)
+			{
+				
+				labelCount = label.at(i);
+				faceCount++;
+				pcas.push_back(PCA(faces.rowRange(dataStart, i), Mat(), CV_PCA_DATA_AS_ROW, MAXIMUM_COMPONENTS_NUMBER));
+				dataStart = i;
+			}
+		}
+		pcas.push_back(PCA(faces.rowRange(dataStart, label.size()), Mat(), CV_PCA_DATA_AS_ROW, MAXIMUM_COMPONENTS_NUMBER));
+	}
+
+}
 
 int main(int argc, char** argv)
 {	
@@ -160,13 +185,12 @@ int main(int argc, char** argv)
 	loadBatchImages(csvdir, faces, label, ';');
 	writeMatToFile(faces, outdir + "faces.txt");
 	writeMatToFile(label, outdir + "label.txt");
-	
-	/*
-	Mat a = readImage("C:\\faceimg\\01\\31.pgm",0);
-	imwrite("C:\\faceimg\\01\\a.pgm", a);
-	Mat av = convertMatToVector(a);
-	imwrite("C:\\faceimg\\01\\av.pgm", av);
-	*/
+
+	vector<PCA> pcaFaces;
+	initMassPCA(faces,label,pcaFaces);
+
+	PCA testPCA = pcaFaces.back();
+	writeMatToFile(testPCA.eigenvectors, outdir + "PCAEIGEN31.TXT");
 
 	/*Mat covar01,mean01,eigenvec01,eigenval01,nCovar01;
 	calcCovarMatrix(face01, covar01, mean01, CV_COVAR_ROWSS | CV_COVAR_NORMAL | CV_COVAR_SCALE, CV_64F);
@@ -178,6 +202,7 @@ int main(int argc, char** argv)
 	writeMatToFile(eigenvec01, "C:\\faceimg\\01\\EIGENVEC01.txt");
 	*/
 
+	
 	/*
 	int numOfComponent = 0;
 	PCA pca(face01, noArray(), CV_PCA_DATA_AS_COL, numOfComponent);
