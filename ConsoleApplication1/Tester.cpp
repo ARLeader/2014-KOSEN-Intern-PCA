@@ -66,7 +66,7 @@ Mat loadBatchImages(string filePath)
 			while (getline(fileStream, line)){
 				vconcat(coAll, readImage(line, 0).reshape(1,1), coAll);
 			}
-			coAll = coAll.colRange(1, coAll.cols); //Remove first column vector.
+			coAll = coAll.rowRange(1, coAll.rows); //Remove first column vector.
 		}
 		else{
 			cout << "ERROR OPENING FILES";
@@ -106,7 +106,7 @@ void loadBatchImages(const string& filePath, Mat& images, Mat& labels, char sepa
 					labels.push_back(atoi(classlabel.c_str()));
 				}
 			}
-			images = images.colRange(1, images.cols); //Remove first column vector.
+			images = images.rowRange(1, images.rows); //Remove first column vector.
 		}
 		else{
 			cout << "ERROR OPENING FILES";
@@ -158,8 +158,8 @@ int main(int argc, char** argv)
 	Mat label;
 	Mat faces;
 	loadBatchImages(csvdir, faces, label, ';');
-
 	writeMatToFile(faces, outdir + "faces.txt");
+	writeMatToFile(label, outdir + "label.txt");
 	
 	/*
 	Mat a = readImage("C:\\faceimg\\01\\31.pgm",0);
