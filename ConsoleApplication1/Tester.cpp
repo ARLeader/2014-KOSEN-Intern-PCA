@@ -23,16 +23,26 @@
 
 
 #include <opencv2/core/core.hpp>
-
+#include <opencv2/objdetect/objdetect.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
 #include <fstream>
 #include <stdio.h>
+#include <conio.h>		// For _kbhit() on Windows
+#include <string>
+#define VK_ESCAPE 0x1B
+
+
 
 
 using namespace cv;
 using namespace std;
+
+/*-----Global variable---------*/
+Mat outputGray;						// result picture is here.
+string name = "";
+string result = "Unknown";
 
 int MAXIMUM_COMPONENTS_NUMBER = 6;
 
@@ -43,6 +53,7 @@ vector<int> label;
 Mat faces;
 vector<Mat> faceVec;
 int nFaces = 0;
+int loopCount = 0;
 
 // Prototype Declarations
 int displayImage(Mat image);
@@ -54,7 +65,9 @@ void initMassPCA(Mat faces, vector<int> label, vector<PCA>& pcas, string filePat
 void writeMatToFile(Mat matrix, string filePath);
 void initMassPCA(Mat faces, vector<int> label, vector<PCA>& pcas);
 int FaceRecog(Mat testImage, vector<PCA> PCAs);
+void testFaceRecog(Mat greyImage);
 void testFaceRecog();
+
 
 String convertNum2String(int input);
 String convertNum2String(double input);
@@ -63,6 +76,20 @@ int findLength(Mat dbFace, Mat testFace);
 double getRange(PCA facePca, Mat testFace);
 void recordFaces();
 Mat readMatrix(string filePath);
+
+
+
+
+void showLabel(Rect_<int> faces, Mat img, string result)
+{
+	//string box_text = format("Prediction = %d", prediction);
+	string box_text = "Is Face :" + result;
+	//position of image
+	double pos_x = std::max(faces.x - 10, 0);
+	double pos_y = std::max(faces.y - 10, 0);
+	// And now put it into the image:
+	putText(img, box_text, Point(pos_x, pos_y), FONT_HERSHEY_SIMPLEX, 1.0, CV_RGB(0, 255, 0), 1.5);
+}
 
 int findLength(Mat testFace)
 {
@@ -80,7 +107,6 @@ int findLength(Mat testFace)
 			face = i;
 		}
 	}
-	
 	return face;
 }
 
@@ -88,6 +114,7 @@ double getRange(PCA facePca, Mat testFace)
 {
 	testFace.convertTo(testFace, 5);
 	normalize(testFace, testFace);
+	loopCount++;
 	Mat coef = getProjVec(facePca.eigenvectors, testFace);
 	Size projVecS = coef.size();
 	double sumAll = 0.0, keepVal = 0.00;
@@ -103,30 +130,173 @@ double getRange(PCA facePca, Mat testFace)
 
 Mat getProjVec(Mat eigenVecFace, Mat testFace)
 {		
-	Size eVFS = eigenVecFace.size();
-	Size inputFaceS = testFace.size();
-	Mat keepDotVal(eVFS.height, inputFaceS.width, CV_64F);
-	Size a = keepDotVal.size();
-	for (int i = 0; i < eVFS.height; i++)
+	try
 	{
-		double collect = 0.00;
-		for (int j = 0; j < eVFS.width; j++)
+		Size eVFS = eigenVecFace.size();
+		Size inputFaceS = testFace.size();
+		Mat keepDotVal(eVFS.height, 1, CV_64F);
+		Size a = keepDotVal.size();
+		for (int i = 0; i < eVFS.height; i++)
 		{
-			if (i >= eigenVecFace.rows || j >= eigenVecFace.cols || j >= testFace.size().height)
-				cout << endl << i << " " << j << " " << eigenVecFace.rows << " " << eigenVecFace.cols << " " << testFace.size().height;
-			collect += eigenVecFace.at<double>(i, j)*testFace.at<double>(j, 0);
+			float collect = 0.00;
+			for (int j = 0; j < eVFS.width; j++)
+			{
+					collect += eigenVecFace.at<float>(i, j)*testFace.at<float>(j, 0);
+			}
+			keepDotVal.col(0).row(i) = collect;
 		}
-		keepDotVal.col(0).row(i) = collect;
+		return keepDotVal;
 	}
-	return keepDotVal;
+	catch (Exception ex){}
+	
 }
 
 
 int main(int argc, char** argv)
 {	
+	/*
+	//setup video capture device and link it to the first capture device
+	VideoCapture captureDevice;
+	captureDevice.open(0);
+	
+
+	//create the cascade classifier object used for the face detection
+	CascadeClassifier face_cas_alt2 = CascadeClassifier("C:\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt2.xml");
+	Mat captureFrame, tmp, grayscaleFrame;
+	std::vector<Rect> faces;
+	char keyPressed = 0;
+	bool isFace, newperson = true;
+	int picNum = 0;
+	//create a window to present the results
+	namedWindow("outputCapture", WINDOW_AUTOSIZE);
+	namedWindow("faceGray", WINDOW_AUTOSIZE);
+	*/
+
+	
 	loadBatchImages(csvdir, ';');
 	recordFaces();
 	testFaceRecog();
+
+
+
+	/*
+	//create a loop to capture and find faces
+	while (true)
+	{
+		try{
+			//capture a new image frame
+			captureDevice >> captureFrame;
+
+			//convert captured image to gray scale and equalize
+			cvtColor(captureFrame, grayscaleFrame, CV_BGR2GRAY);
+			equalizeHist(grayscaleFrame, grayscaleFrame);
+
+			//create a vector array to store the face found 
+			//find faces and store them in the vector array
+			face_cas_alt2.detectMultiScale(grayscaleFrame, faces, 1.1, 3, 0, Size(75, 75), Size(300, 300));
+
+			//print the output
+			for (int i = 0; i < faces.size(); i++)
+			{
+				Point pt1(faces[i].x + faces[i].width, faces[i].y + faces[i].height);
+				Point pt2(faces[i].x, faces[i].y);
+
+				// select only <Mat> face image from Vector<Rect>faces
+				try{
+					tmp = captureFrame;
+					tmp = tmp.colRange(faces[i].x, faces[i].x + faces[i].width);
+					tmp = tmp.rowRange(faces[i].y, faces[i].y + faces[i].height);
+					// tranform to grayScale
+					cvtColor(tmp, outputGray, CV_BGR2GRAY);
+					equalizeHist(outputGray, outputGray);
+					
+					//DANGER
+					//testFaceRecog(outputGray);
+				
+				
+				}
+				catch (exception ex){}
+
+				//show image
+				try {
+					imshow("faceGray", outputGray);
+					isFace = true;
+					cout << "Detection Face: Found!!! \tat x: " << faces[i].x << " and y: " << faces[i].y << '\n';
+				}
+				catch (exception ex){
+					cout << "file not match" << endl;
+				}
+				//draw a rectangle for all found faces in the vector array on the original image.
+				rectangle(captureFrame, pt1, pt2, cvScalar(0, 255, 0, 0), 1, 8, 0);
+				//draw a label for all found on upper left of the original image.
+				showLabel(faces[i], captureFrame, result);
+				result = "Unknown";
+			}
+			imshow("outputCapture", captureFrame);
+			//wait for key
+			try{
+				if (_kbhit()){
+					keyPressed = _getch();
+					if (keyPressed == VK_ESCAPE) {	// Check if the user hit the 'Escape' key
+						break;	// Stop processing input.
+					}
+				}
+				switch (keyPressed) {
+				case 'n':	// Add a new person to the training set.
+					if (newperson){
+						cout << '\n' << "Enter your name: ";
+						cin >> name;
+						newperson = false;
+					}
+					if (name.length() > 1 & isFace == true){
+						imwrite("DB_new\\" + name + to_string(picNum) + ".pgm", outputGray);
+						cout << '\n' << "Writing:" << "DB_new\\" << picNum << "_" << name << ".pgm" << '\n';
+						picNum++;
+						isFace = false; //for checking new face
+						if (picNum >= 40)
+						{
+							keyPressed = 't';
+						}
+					}
+					break;
+				case 't':	// Start training or stop write picture
+					cout << "Recognizing person in the camera ..." << '\n';
+					picNum = 0;
+					keyPressed = 0;
+					newperson = true;
+					name.clear();
+					break;
+				case 'i':	// get picture infinite until press any key
+					if (newperson){
+						cout << '\n' << "Enter your name: ";
+						cin >> name;
+						newperson = false;
+					}
+					if (name.length() > 1 & isFace == true){
+						imwrite("DB_new\\" + name + to_string(picNum) + ".pgm", outputGray);
+						cout << '\n' << "Writing:" << "DB_new\\" << picNum << "_" << name << ".pgm" << '\n';
+						picNum++;
+						isFace = false; //for checking new face
+					}
+					break;
+				}
+			}
+			catch (exception ex){
+			}
+			// wait for 40 ms
+			waitKey(40);
+
+			//destroy result of detection window
+			destroyWindow("faceGray");
+
+			//return outputGray; 
+		}
+		catch (exception ex){
+			cout << "exception No. UNKNOWN" << '\n';
+		}
+	}
+	
+	*/
 	cout << "SUCCESS";
 	
 	return(0);
@@ -176,39 +346,6 @@ Mat readImage(string path, int format)
 		cout << "An exception occurred. Exception Nr. " << e << endl;
 	}
 	return image;
-}
-
-/*OBSOLETE*/
-/*Load image(s) specified by given filePath in form of vectors.*/
-Mat loadBatchImages(string filePath)
-{
-	string line, path, classlabel;
-	Mat coAll;
-	try
-	{
-		ifstream fileStream;
-		
-		coAll = Mat::ones(1, DEFAULT_IMAGE_SIZE.height * DEFAULT_IMAGE_SIZE.width, CV_8U); // Create a row of 1 for using with concat.
-		int imgNum = 0;
-		fileStream.open(filePath, std::ifstream::in);
-		if (fileStream.is_open())
-		{
-			while (getline(fileStream, line)){
-				vconcat(coAll, readImage(line, CV_LOAD_IMAGE_GRAYSCALE).reshape(1, 1), coAll);
-			}
-			coAll = coAll.rowRange(1, coAll.rows); // Remove first row vector.
-		}
-		else{
-			cout << "ERROR OPENING FILES";
-		}
-		fileStream.close();
-	}
-	catch (int e)
-	{
-		cout << "An exception occurred. Exception Nr. " << e << '\n';
-	}
-	return coAll;
-
 }
 
 /*Load image(s) specified by given filePath in form of vectors.*/
@@ -426,22 +563,64 @@ int FaceRecog(Mat testImage, vector<PCA> PCAs)
 }
 
 /*Report Result of Face Recognition on every faces provided*/
+void testFaceRecog(Mat greyImage)
+{
+	int result;
+	double correctCount = 0;
+	Mat recognizerCountMat = Mat::zeros(label.size(), 1, CV_16S), recognizerCorrectMat = Mat::zeros(label.size(), 1, CV_16S);
+	vector<int> recognizerCount = recognizerCountMat, recognizerCorrect = recognizerCorrectMat;
+
+
+	/*for (int testFaceNum = 0; testFaceNum < faces.cols; testFaceNum++)
+	{*/
+
+	resize(greyImage, greyImage, DEFAULT_IMAGE_SIZE);
+	result = findLength(greyImage.reshape(1,1).t());
+
+
+	cout << "The face has been recognized as Face Number : " << result << endl;
+	/*if (result == label.at(testFaceNum))
+	{
+	cout << "PONG! ";
+	recognizerCorrect[label.at(testFaceNum)]++;
+	correctCount++;
+	}
+	recognizerCount[result]++;
+	}
+
+
+	cout << endl << "The Result is Here" << endl;
+	int count = 0;
+	for (int i = 0; i < recognizerCount.size(); i++)
+	{
+	cout << "Face Number : " << count << "\tHas the Score of : " << recognizerCount[i] << "\tWith " << recognizerCorrect[i] << " Correct Rate." << endl;
+	count++;
+	}
+	cout << "This program has correctly recognize " << correctCount << " faces" << endl << "Out of " << faces.cols << endl << "Which is calculated as " << (correctCount / faces.cols) * 100 << " Percents." << endl;
+	*/
+}
+
+/*Report Result of Face Recognition on every faces provided*/
 void testFaceRecog()
 {
 	int result;
 	double correctCount = 0;
 	Mat recognizerCountMat = Mat::zeros(label.size(), 1, CV_16S), recognizerCorrectMat = Mat::zeros(label.size(), 1, CV_16S);
 	vector<int> recognizerCount = recognizerCountMat, recognizerCorrect = recognizerCorrectMat;
+
+
 	for (int testFaceNum = 0; testFaceNum < faces.cols; testFaceNum++)
 	{
 		result = findLength(faces.col(testFaceNum));
-		cout << "The face Number " << testFaceNum << " has been recognized as Face Number : " << result << endl;
-		if (result == label.at(testFaceNum))
+
+		cout << "The face no. " << testFaceNum << " has been recognized as Face Number : " << result;
+		if (result + 1 == label.at(testFaceNum))
 		{
 			cout << "PONG! ";
 			recognizerCorrect[label.at(testFaceNum)]++;
 			correctCount++;
 		}
+		cout << endl;
 		recognizerCount[result]++;
 	}
 
@@ -450,9 +629,10 @@ void testFaceRecog()
 	int count = 0;
 	for (int i = 0; i < recognizerCount.size(); i++)
 	{
-		cout << "Face Number : " << count << "\tHas the Score of : " << recognizerCount[i] << "\tWith " << recognizerCorrect[i] << " Correct Rate." << endl;
-		count++;
+	cout << "Face Number : " << count << "\tHas the Score of : " << recognizerCount[i] << "\tWith " << recognizerCorrect[i] << " Correct Rate." << endl;
+	count++;
 	}
 	cout << "This program has correctly recognize " << correctCount << " faces" << endl << "Out of " << faces.cols << endl << "Which is calculated as " << (correctCount / faces.cols) * 100 << " Percents." << endl;
-
+	
 }
+
