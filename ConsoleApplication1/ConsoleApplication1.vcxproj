@@ -21,6 +21,9 @@
   <ItemGroup>
     <Text Include="Face Recognition.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\..\..\..\imgface\create_csv.py" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{AAE5FCC1-9058-4950-887C-5D4A5A8852BE}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>

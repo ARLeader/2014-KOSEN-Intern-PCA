@@ -32,6 +32,9 @@
 #include <conio.h>		// For _kbhit() on Windows
 #include <string>
 
+#include <Python.h>
+#include <pythonrun.h>
+
 #define VK_ESCAPE 0x1B
 
 
@@ -50,7 +53,7 @@ Size DEFAULT_IMAGE_SIZE(30, 30); // Dafault dimension for faces in the database
 string indir = "C:\\imgface\\";
 string csvdir = indir + "faceDIR.txt";
 string outdir = "C:\\faceout\\";
-string pythonScriptPath = csvdir + "create_csv.py";
+string pythonScriptPath = indir + "create_csv.py";
 vector<int> label;
 Mat faces;
 vector<Mat> faceVec;
@@ -69,76 +72,25 @@ void initMassPCA(Mat faces, vector<int> label, vector<PCA>& pcas);
 int FaceRecog(Mat testImage, vector<PCA> PCAs);
 int testFaceRecog(Mat greyImage);
 void testFaceRecog();
-
+void runPythonScript(string filePath, string argument);
 
 String convertNum2String(int input);
 String convertNum2String(double input);
-Mat getProjVec(Mat eigenVecFace, Mat testFace);
-int findLength(Mat dbFace, Mat testFace);
-double getRange(PCA facePca, Mat testFace);
 void recordFaces();
 Mat readMatrix(string filePath);
+void showLabel(Rect_<int> faces, Mat img, string result);
+int findLength(Mat testFace);
+double getRange(PCA facePca, Mat testFace);
+Mat getProjVec(Mat eigenVecFace, Mat testFace);
 
 
 
 
-void showLabel(Rect_<int> faces, Mat img, string result)
-{
-	//string box_text = format("Prediction = %d", prediction);
-	string box_text = "Is Face :" + result;
-	//position of image
-	double pos_x = std::max(faces.x - 10, 0);
-	double pos_y = std::max(faces.y - 10, 0);
-	// And now put it into the image:
-	putText(img, box_text, Point(pos_x, pos_y), FONT_HERSHEY_SIMPLEX, 1.0, CV_RGB(0, 255, 0), 1.5);
-}
-
-int findLength(Mat testFace)
-{
-	double sum = 00.00;
-	int face = 0;
-	for (int i = 0; i<nFaces; i++)
-	{
-		//cout << faceVec.size() << " " << i << " " << faceVec.at(i).rows << "," << faceVec.at(i).rows << endl;
-		PCA facePca(faceVec.at(i), noArray(), CV_PCA_DATA_AS_COL, 0);
-		double range = getRange(facePca, testFace);
-		if (range > sum)
-		{
-			sum = range;
-			face = i;
-		}
-	}
-	return face;
-}
-
-double getRange(PCA facePca, Mat testFace)
-{
-	testFace.convertTo(testFace, 5);
-	normalize(testFace, testFace);
-	loopCount++;
-	Mat coef = getProjVec(facePca.eigenvectors, testFace);
-	Size projVecS = coef.size();
-	double sumAll = 0.0, keepVal = 0.00;
-	int z = 0;
-	
-	for (int i = 0; i<projVecS.height; i++){
-		keepVal = coef.at<double>(i, 0);
-
-		sumAll += (keepVal*keepVal);
-	}
-	return sqrt(sumAll);
-}
-
-Mat getProjVec(Mat eigenVecFace, Mat testFace)
-{		
-	eigenVecFace.convertTo(eigenVecFace, CV_64FC1);
-	testFace.convertTo(testFace, CV_64FC1);
-	return eigenVecFace * testFace;
-}
 
 
 int main(int argc, char** argv)
 {	
+	runPythonScript(pythonScriptPath, indir);
 	
 	//setup video capture device and link it to the first capture device
 	VideoCapture captureDevice;
@@ -290,6 +242,8 @@ int main(int argc, char** argv)
 	return(0);
 	
 }
+
+
 
 /*Return input number as string*/
 String convertNum2String(int input){
@@ -599,3 +553,71 @@ void testFaceRecog()
 	
 }
 
+void showLabel(Rect_<int> faces, Mat img, string result)
+{
+	//string box_text = format("Prediction = %d", prediction);
+	string box_text = "Is Face :" + result;
+	//position of image
+	double pos_x = std::max(faces.x - 10, 0);
+	double pos_y = std::max(faces.y - 10, 0);
+	// And now put it into the image:
+	putText(img, box_text, Point(pos_x, pos_y), FONT_HERSHEY_SIMPLEX, 1.0, CV_RGB(0, 255, 0), 1.5);
+}
+
+/*Predict testFace with faces in database*/
+int findLength(Mat testFace)
+{
+	double sum = 00.00;
+	int face = 0;
+	for (int i = 0; i<nFaces; i++)
+	{
+		//cout << faceVec.size() << " " << i << " " << faceVec.at(i).rows << "," << faceVec.at(i).rows << endl;
+		PCA facePca(faceVec.at(i), noArray(), CV_PCA_DATA_AS_COL, 0);
+		double range = getRange(facePca, testFace);
+		if (range > sum)
+		{
+			sum = range;
+			face = i;
+		}
+	}
+	return face;
+}
+
+/*Return the square sum of projected vectors*/
+double getRange(PCA facePca, Mat testFace)
+{
+	testFace.convertTo(testFace, 5);
+	normalize(testFace, testFace);
+	loopCount++;
+	Mat coef = getProjVec(facePca.eigenvectors, testFace);
+	Size projVecS = coef.size();
+	double sumAll = 0.0, keepVal = 0.00;
+	int z = 0;
+
+	for (int i = 0; i<projVecS.height; i++){
+		keepVal = coef.at<double>(i, 0);
+
+		sumAll += (keepVal*keepVal);
+	}
+	return sqrt(sumAll);
+}
+
+/*Return Mat multiplication of projected vector and eigenvecs*/
+Mat getProjVec(Mat eigenVecFace, Mat testFace)
+{
+	eigenVecFace.convertTo(eigenVecFace, CV_64FC1);
+	testFace.convertTo(testFace, CV_64FC1);
+	return eigenVecFace * testFace;
+}
+
+/*Execute python script on selected path*/
+void runPythonScript(string filePath,string argument)
+{
+	Py_Initialize();
+
+	//PyRun_SimpleString("import sys");
+	//string app = filePath;
+	//PyRun_SimpleString(app.c_str());
+
+	Py_Finalize();
+}

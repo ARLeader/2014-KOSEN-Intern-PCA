@@ -23,4 +23,9 @@
   <ItemGroup>
     <Text Include="Face Recognition.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\..\..\..\imgface\create_csv.py">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
 </Project>
