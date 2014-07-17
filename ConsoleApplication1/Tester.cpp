@@ -31,8 +31,8 @@
 #include <stdio.h>
 #include <conio.h>		// For _kbhit() on Windows
 #include <string>
-#define VK_ESCAPE 0x1B
 
+#define VK_ESCAPE 0x1B
 
 
 
@@ -47,8 +47,10 @@ string result = "Unknown";
 int MAXIMUM_COMPONENTS_NUMBER = 6;
 
 Size DEFAULT_IMAGE_SIZE(30, 30); // Dafault dimension for faces in the database
-string csvdir = "C:\\imgface\\faceDIR.txt";
+string indir = "C:\\imgface\\";
+string csvdir = indir + "faceDIR.txt";
 string outdir = "C:\\faceout\\";
+string pythonScriptPath = csvdir + "create_csv.py";
 vector<int> label;
 Mat faces;
 vector<Mat> faceVec;
@@ -65,7 +67,7 @@ void initMassPCA(Mat faces, vector<int> label, vector<PCA>& pcas, string filePat
 void writeMatToFile(Mat matrix, string filePath);
 void initMassPCA(Mat faces, vector<int> label, vector<PCA>& pcas);
 int FaceRecog(Mat testImage, vector<PCA> PCAs);
-void testFaceRecog(Mat greyImage);
+int testFaceRecog(Mat greyImage);
 void testFaceRecog();
 
 
@@ -93,7 +95,6 @@ void showLabel(Rect_<int> faces, Mat img, string result)
 
 int findLength(Mat testFace)
 {
-	int component = 0, count = 0;
 	double sum = 00.00;
 	int face = 0;
 	for (int i = 0; i<nFaces; i++)
@@ -130,31 +131,15 @@ double getRange(PCA facePca, Mat testFace)
 
 Mat getProjVec(Mat eigenVecFace, Mat testFace)
 {		
-	try
-	{
-		Size eVFS = eigenVecFace.size();
-		Size inputFaceS = testFace.size();
-		Mat keepDotVal(eVFS.height, 1, CV_64F);
-		Size a = keepDotVal.size();
-		for (int i = 0; i < eVFS.height; i++)
-		{
-			float collect = 0.00;
-			for (int j = 0; j < eVFS.width; j++)
-			{
-					collect += eigenVecFace.at<float>(i, j)*testFace.at<float>(j, 0);
-			}
-			keepDotVal.col(0).row(i) = collect;
-		}
-		return keepDotVal;
-	}
-	catch (Exception ex){}
-	
+	eigenVecFace.convertTo(eigenVecFace, CV_64FC1);
+	testFace.convertTo(testFace, CV_64FC1);
+	return eigenVecFace * testFace;
 }
 
 
 int main(int argc, char** argv)
 {	
-	/*
+	
 	//setup video capture device and link it to the first capture device
 	VideoCapture captureDevice;
 	captureDevice.open(0);
@@ -167,19 +152,21 @@ int main(int argc, char** argv)
 	char keyPressed = 0;
 	bool isFace, newperson = true;
 	int picNum = 0;
+	String result = "Unknown";
 	//create a window to present the results
 	namedWindow("outputCapture", WINDOW_AUTOSIZE);
 	namedWindow("faceGray", WINDOW_AUTOSIZE);
-	*/
+	
 
 	
 	loadBatchImages(csvdir, ';');
 	recordFaces();
-	testFaceRecog();
+	
+	//testFaceRecog();
 
 
 
-	/*
+	
 	//create a loop to capture and find faces
 	while (true)
 	{
@@ -210,8 +197,7 @@ int main(int argc, char** argv)
 					cvtColor(tmp, outputGray, CV_BGR2GRAY);
 					equalizeHist(outputGray, outputGray);
 					
-					//DANGER
-					//testFaceRecog(outputGray);
+					
 				
 				
 				}
@@ -229,8 +215,12 @@ int main(int argc, char** argv)
 				//draw a rectangle for all found faces in the vector array on the original image.
 				rectangle(captureFrame, pt1, pt2, cvScalar(0, 255, 0, 0), 1, 8, 0);
 				//draw a label for all found on upper left of the original image.
+				
+				
+				//DANGER
+				result = convertNum2String(testFaceRecog(outputGray));
 				showLabel(faces[i], captureFrame, result);
-				result = "Unknown";
+
 			}
 			imshow("outputCapture", captureFrame);
 			//wait for key
@@ -296,8 +286,6 @@ int main(int argc, char** argv)
 		}
 	}
 	
-	*/
-	cout << "SUCCESS";
 	
 	return(0);
 	
@@ -563,41 +551,16 @@ int FaceRecog(Mat testImage, vector<PCA> PCAs)
 }
 
 /*Report Result of Face Recognition on every faces provided*/
-void testFaceRecog(Mat greyImage)
+int testFaceRecog(Mat greyImage)
 {
 	int result;
-	double correctCount = 0;
-	Mat recognizerCountMat = Mat::zeros(label.size(), 1, CV_16S), recognizerCorrectMat = Mat::zeros(label.size(), 1, CV_16S);
-	vector<int> recognizerCount = recognizerCountMat, recognizerCorrect = recognizerCorrectMat;
-
-
-	/*for (int testFaceNum = 0; testFaceNum < faces.cols; testFaceNum++)
-	{*/
 
 	resize(greyImage, greyImage, DEFAULT_IMAGE_SIZE);
 	result = findLength(greyImage.reshape(1,1).t());
 
 
 	cout << "The face has been recognized as Face Number : " << result << endl;
-	/*if (result == label.at(testFaceNum))
-	{
-	cout << "PONG! ";
-	recognizerCorrect[label.at(testFaceNum)]++;
-	correctCount++;
-	}
-	recognizerCount[result]++;
-	}
-
-
-	cout << endl << "The Result is Here" << endl;
-	int count = 0;
-	for (int i = 0; i < recognizerCount.size(); i++)
-	{
-	cout << "Face Number : " << count << "\tHas the Score of : " << recognizerCount[i] << "\tWith " << recognizerCorrect[i] << " Correct Rate." << endl;
-	count++;
-	}
-	cout << "This program has correctly recognize " << correctCount << " faces" << endl << "Out of " << faces.cols << endl << "Which is calculated as " << (correctCount / faces.cols) * 100 << " Percents." << endl;
-	*/
+	return result;
 }
 
 /*Report Result of Face Recognition on every faces provided*/
@@ -605,7 +568,7 @@ void testFaceRecog()
 {
 	int result;
 	double correctCount = 0;
-	Mat recognizerCountMat = Mat::zeros(label.size(), 1, CV_16S), recognizerCorrectMat = Mat::zeros(label.size(), 1, CV_16S);
+	Mat recognizerCountMat = Mat::zeros(nFaces, 1, CV_16S), recognizerCorrectMat = Mat::zeros(nFaces, 1, CV_16S);
 	vector<int> recognizerCount = recognizerCountMat, recognizerCorrect = recognizerCorrectMat;
 
 
