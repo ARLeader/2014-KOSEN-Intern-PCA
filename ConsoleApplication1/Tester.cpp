@@ -50,10 +50,12 @@ string result = "Unknown";
 int MAXIMUM_COMPONENTS_NUMBER = 6;
 
 Size DEFAULT_IMAGE_SIZE(30, 30); // Dafault dimension for faces in the database
-string indir = "C:\\imgface\\";
-string csvdir = indir + "faceDIR.txt";
+string indir = "C:\\camface\\";
+string csvdir = indir + "db\\faceDIR.txt";
 string outdir = "C:\\faceout\\";
-string pythonScriptPath = indir + "create_csv.py";
+string pythonScriptPath = indir + "db\\create_csv.py";
+string camdir = indir + "captures\\";
+
 vector<int> label;
 Mat faces;
 vector<Mat> faceVec;
@@ -137,14 +139,24 @@ int main(int argc, char** argv)
 			//print the output
 			for (int i = 0; i < faces.size(); i++)
 			{
-				Point pt1(faces[i].x + faces[i].width, faces[i].y + faces[i].height);
-				Point pt2(faces[i].x, faces[i].y);
+				//Point pt1(faces[i].x + faces[i].width, faces[i].y + faces[i].height);
+				//Point pt2(faces[i].x, faces[i].y);
+				double percentage = 0.08;
+				double wMargin = faces[i].width * percentage, hMargin = faces[i].height * percentage;
+				Point pt1((faces[i].x) + (faces[i].width - wMargin), (faces[i].y) + (faces[i].height - hMargin));
+				Point pt2(faces[i].x + wMargin, faces[i].y + hMargin);
 
 				// select only <Mat> face image from Vector<Rect>faces
 				try{
+					//tmp = captureFrame;
+					//tmp = tmp.colRange(faces[i].x, faces[i].x + faces[i].width);
+					//tmp = tmp.rowRange(faces[i].y, faces[i].y + faces[i].height);
+
+
 					tmp = captureFrame;
-					tmp = tmp.colRange(faces[i].x, faces[i].x + faces[i].width);
-					tmp = tmp.rowRange(faces[i].y, faces[i].y + faces[i].height);
+					tmp = tmp.colRange((faces[i].x + wMargin), (faces[i].x) + (faces[i].width - wMargin));
+					tmp = tmp.rowRange((faces[i].y + hMargin), (faces[i].y) + (faces[i].height - hMargin));
+
 					// tranform to grayScale
 					cvtColor(tmp, outputGray, CV_BGR2GRAY);
 					equalizeHist(outputGray, outputGray);
@@ -177,51 +189,56 @@ int main(int argc, char** argv)
 			imshow("outputCapture", captureFrame);
 			//wait for key
 			try{
-				if (_kbhit()){
+				if (_kbhit())
+				{
 					keyPressed = _getch();
 					if (keyPressed == VK_ESCAPE) {	// Check if the user hit the 'Escape' key
 						break;	// Stop processing input.
 					}
-				}
-				switch (keyPressed) {
-				case 'n':	// Add a new person to the training set.
-					if (newperson){
-						cout << '\n' << "Enter your name: ";
-						cin >> name;
-						newperson = false;
-					}
-					if (name.length() > 1 & isFace == true){
-						imwrite("DB_new\\" + name + to_string(picNum) + ".pgm", outputGray);
-						cout << '\n' << "Writing:" << "DB_new\\" << picNum << "_" << name << ".pgm" << '\n';
-						picNum++;
-						isFace = false; //for checking new face
-						if (picNum >= 40)
-						{
-							keyPressed = 't';
+
+					cout << keyPressed;
+
+					switch (keyPressed) {
+					case 'n':	// Add a new person to the training set.
+						if (newperson){
+							cout << '\n' << "Enter your name: ";
+							cin >> name;
+							newperson = false;
 						}
+						if (name.length() > 1 & isFace == true){
+							imwrite(camdir + name + to_string(picNum) + ".pgm", outputGray);
+							cout << '\n' << "Writing:" << camdir << picNum << "_" << name << ".pgm" << '\n';
+							picNum++;
+							isFace = false; //for checking new face
+							if (picNum >= 40)
+							{
+								keyPressed = 't';
+							}
+						}
+						break;
+					case 't':	// Start training or stop write picture
+						cout << "Recognizing person in the camera ..." << '\n';
+						picNum = 0;
+						keyPressed = 0;
+						newperson = true;
+						name.clear();
+						break;
+					case 'i':	// get picture infinite until press any key
+						if (newperson){
+							cout << '\n' << "Enter your name: ";
+							cin >> name;
+							newperson = false;
+						}
+						if (name.length() > 1 & isFace == true){
+							imwrite(camdir + name + to_string(picNum) + ".pgm", outputGray);
+							cout << '\n' << "Writing:" << camdir << picNum << "_" << name << ".pgm" << '\n';
+							picNum++;
+							isFace = false; //for checking new face
+						}
+						break;
 					}
-					break;
-				case 't':	// Start training or stop write picture
-					cout << "Recognizing person in the camera ..." << '\n';
-					picNum = 0;
-					keyPressed = 0;
-					newperson = true;
-					name.clear();
-					break;
-				case 'i':	// get picture infinite until press any key
-					if (newperson){
-						cout << '\n' << "Enter your name: ";
-						cin >> name;
-						newperson = false;
-					}
-					if (name.length() > 1 & isFace == true){
-						imwrite("DB_new\\" + name + to_string(picNum) + ".pgm", outputGray);
-						cout << '\n' << "Writing:" << "DB_new\\" << picNum << "_" << name << ".pgm" << '\n';
-						picNum++;
-						isFace = false; //for checking new face
-					}
-					break;
 				}
+				
 			}
 			catch (exception ex){
 			}
@@ -531,7 +548,7 @@ void testFaceRecog()
 		result = findLength(faces.col(testFaceNum));
 
 		cout << "The face no. " << testFaceNum << " has been recognized as Face Number : " << result;
-		if (result + 1 == label.at(testFaceNum))
+		if (result == label.at(testFaceNum))
 		{
 			cout << "PONG! ";
 			recognizerCorrect[label.at(testFaceNum)]++;
@@ -556,7 +573,7 @@ void testFaceRecog()
 void showLabel(Rect_<int> faces, Mat img, string result)
 {
 	//string box_text = format("Prediction = %d", prediction);
-	string box_text = "Is Face :" + result;
+	string box_text = result;
 	//position of image
 	double pos_x = std::max(faces.x - 10, 0);
 	double pos_y = std::max(faces.y - 10, 0);
@@ -574,13 +591,16 @@ int findLength(Mat testFace)
 		//cout << faceVec.size() << " " << i << " " << faceVec.at(i).rows << "," << faceVec.at(i).rows << endl;
 		PCA facePca(faceVec.at(i), noArray(), CV_PCA_DATA_AS_COL, 0);
 		double range = getRange(facePca, testFace);
+		cout << endl<< i << " " << range << endl;
+
 		if (range > sum)
 		{
 			sum = range;
 			face = i;
 		}
 	}
-	return face;
+	cout << endl;
+	return face+1;
 }
 
 /*Return the square sum of projected vectors*/
@@ -608,6 +628,27 @@ Mat getProjVec(Mat eigenVecFace, Mat testFace)
 	eigenVecFace.convertTo(eigenVecFace, CV_64FC1);
 	testFace.convertTo(testFace, CV_64FC1);
 	return eigenVecFace * testFace;
+
+	/*
+	try
+	{
+		Size eVFS = eigenVecFace.size();
+		Size inputFaceS = testFace.size();
+		Mat keepDotVal(eVFS.height, 1, CV_64F);
+		Size a = keepDotVal.size();
+		for (int i = 0; i < eVFS.height; i++)
+		{
+			float collect = 0.00;
+			for (int j = 0; j < eVFS.width; j++)
+			{
+				collect += eigenVecFace.at<float>(i, j)*testFace.at<float>(j, 0);
+			}
+			keepDotVal.col(0).row(i) = collect;
+		}
+		return keepDotVal;
+	}
+	
+	catch (Exception ex){}*/
 }
 
 /*Execute python script on selected path*/
