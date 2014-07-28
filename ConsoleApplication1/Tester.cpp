@@ -47,20 +47,23 @@ Mat outputGray;						// result picture is here.
 string name = "";
 string result = "Unknown";
 
-int MAXIMUM_COMPONENTS_NUMBER = 6;
-
-Size DEFAULT_IMAGE_SIZE(30, 30); // Dafault dimension for faces in the database
-string indir = "C:\\camface\\";
-string csvdir = indir + "db\\faceDIR.txt";
-string outdir = "C:\\faceout\\";
-string pythonScriptPath = indir + "db\\create_csv.py";
-string camdir = indir + "captures\\";
-
 vector<int> label;
 Mat faces;
 vector<Mat> faceVec;
 int nFaces = 0;
+
+// Variable for debugging
 int loopCount = 0;
+
+int MAXIMUM_COMPONENTS_NUMBER = 6; // The amount of PCA components
+
+Size DEFAULT_IMAGE_SIZE(30, 30); // Dafault dimension for faces in the database
+string indir = "C:\\camface\\";
+string camdir = indir + "captures\\";
+string csvdir = indir + "db\\faceDIR.txt";
+string pythonScriptPath = indir + "db\\create_csv.py";
+
+string outdir = "C:\\faceout\\";
 
 // Prototype Declarations
 int displayImage(Mat image);
@@ -84,178 +87,16 @@ void showLabel(Rect_<int> faces, Mat img, string result);
 int findLength(Mat testFace);
 double getRange(PCA facePca, Mat testFace);
 Mat getProjVec(Mat eigenVecFace, Mat testFace);
-
-
-
-
-
+void startCamera();
 
 int main(int argc, char** argv)
 {	
 	runPythonScript(pythonScriptPath, indir);
-	
-	//setup video capture device and link it to the first capture device
-	VideoCapture captureDevice;
-	captureDevice.open(0);
-	
-
-	//create the cascade classifier object used for the face detection
-	CascadeClassifier face_cas_alt2 = CascadeClassifier("C:\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt2.xml");
-	Mat captureFrame, tmp, grayscaleFrame;
-	std::vector<Rect> faces;
-	char keyPressed = 0;
-	bool isFace, newperson = true;
-	int picNum = 0;
-	String result = "Unknown";
-	//create a window to present the results
-	namedWindow("outputCapture", WINDOW_AUTOSIZE);
-	namedWindow("faceGray", WINDOW_AUTOSIZE);
-	
-
-	
 	loadBatchImages(csvdir, ';');
 	recordFaces();
+	startCamera();
 	
 	//testFaceRecog();
-
-
-
-	
-	//create a loop to capture and find faces
-	while (true)
-	{
-		try{
-			//capture a new image frame
-			captureDevice >> captureFrame;
-
-			//convert captured image to gray scale and equalize
-			cvtColor(captureFrame, grayscaleFrame, CV_BGR2GRAY);
-			equalizeHist(grayscaleFrame, grayscaleFrame);
-
-			//create a vector array to store the face found 
-			//find faces and store them in the vector array
-			face_cas_alt2.detectMultiScale(grayscaleFrame, faces, 1.1, 3, 0, Size(75, 75), Size(300, 300));
-
-			//print the output
-			for (int i = 0; i < faces.size(); i++)
-			{
-				//Point pt1(faces[i].x + faces[i].width, faces[i].y + faces[i].height);
-				//Point pt2(faces[i].x, faces[i].y);
-				double percentage = 0.08;
-				double wMargin = faces[i].width * percentage, hMargin = faces[i].height * percentage;
-				Point pt1((faces[i].x) + (faces[i].width - wMargin), (faces[i].y) + (faces[i].height - hMargin));
-				Point pt2(faces[i].x + wMargin, faces[i].y + hMargin);
-
-				// select only <Mat> face image from Vector<Rect>faces
-				try{
-					//tmp = captureFrame;
-					//tmp = tmp.colRange(faces[i].x, faces[i].x + faces[i].width);
-					//tmp = tmp.rowRange(faces[i].y, faces[i].y + faces[i].height);
-
-
-					tmp = captureFrame;
-					tmp = tmp.colRange((faces[i].x + wMargin), (faces[i].x) + (faces[i].width - wMargin));
-					tmp = tmp.rowRange((faces[i].y + hMargin), (faces[i].y) + (faces[i].height - hMargin));
-
-					// tranform to grayScale
-					cvtColor(tmp, outputGray, CV_BGR2GRAY);
-					equalizeHist(outputGray, outputGray);
-					
-					
-				
-				
-				}
-				catch (exception ex){}
-
-				//show image
-				try {
-					imshow("faceGray", outputGray);
-					isFace = true;
-					cout << "Detection Face: Found!!! \tat x: " << faces[i].x << " and y: " << faces[i].y << '\n';
-				}
-				catch (exception ex){
-					cout << "file not match" << endl;
-				}
-				//draw a rectangle for all found faces in the vector array on the original image.
-				rectangle(captureFrame, pt1, pt2, cvScalar(0, 255, 0, 0), 1, 8, 0);
-				//draw a label for all found on upper left of the original image.
-				
-				
-				//DANGER
-				result = convertNum2String(testFaceRecog(outputGray));
-				showLabel(faces[i], captureFrame, result);
-
-			}
-			imshow("outputCapture", captureFrame);
-			//wait for key
-			try{
-				if (_kbhit())
-				{
-					keyPressed = _getch();
-					if (keyPressed == VK_ESCAPE) {	// Check if the user hit the 'Escape' key
-						break;	// Stop processing input.
-					}
-
-					cout << keyPressed;
-
-					switch (keyPressed) {
-					case 'n':	// Add a new person to the training set.
-						if (newperson){
-							cout << '\n' << "Enter your name: ";
-							cin >> name;
-							newperson = false;
-						}
-						if (name.length() > 1 & isFace == true){
-							imwrite(camdir + name + to_string(picNum) + ".pgm", outputGray);
-							cout << '\n' << "Writing:" << camdir << picNum << "_" << name << ".pgm" << '\n';
-							picNum++;
-							isFace = false; //for checking new face
-							if (picNum >= 40)
-							{
-								keyPressed = 't';
-							}
-						}
-						break;
-					case 't':	// Start training or stop write picture
-						cout << "Recognizing person in the camera ..." << '\n';
-						picNum = 0;
-						keyPressed = 0;
-						newperson = true;
-						name.clear();
-						break;
-					case 'i':	// get picture infinite until press any key
-						if (newperson){
-							cout << '\n' << "Enter your name: ";
-							cin >> name;
-							newperson = false;
-						}
-						if (name.length() > 1 & isFace == true){
-							imwrite(camdir + name + to_string(picNum) + ".pgm", outputGray);
-							cout << '\n' << "Writing:" << camdir << picNum << "_" << name << ".pgm" << '\n';
-							picNum++;
-							isFace = false; //for checking new face
-						}
-						break;
-					}
-				}
-				
-			}
-			catch (exception ex){
-			}
-			// wait for 40 ms
-			waitKey(40);
-
-			//destroy result of detection window
-			destroyWindow("faceGray");
-
-			//return outputGray; 
-		}
-		catch (exception ex){
-			cout << "exception No. UNKNOWN" << '\n';
-		}
-	}
-	
-	
 	return(0);
 	
 }
@@ -316,7 +157,7 @@ void loadBatchImages(string& filePath, char separator = ';')
 	{
 		ifstream fileStream;
 
-		faces = Mat::ones(DEFAULT_IMAGE_SIZE.height * DEFAULT_IMAGE_SIZE.width, 1, CV_8U); // Create a row of 1 for using with concat.
+		faces = Mat::ones(DEFAULT_IMAGE_SIZE.height * DEFAULT_IMAGE_SIZE.width, 1, CV_8U); // Create a row vector for using with concat.
 		int imgNum = 0;
 
 		fileStream.open(filePath, std::ifstream::in);
@@ -332,7 +173,7 @@ void loadBatchImages(string& filePath, char separator = ';')
 					label.push_back(atoi(classlabel.c_str()));
 				}
 			}
-			faces = faces.colRange(1, faces.cols); // Remove first row vector.
+			faces = faces.colRange(1, faces.cols); // Remove the first row vector.
 		}
 		else{
 			cout << "ERROR OPENING FILES";
@@ -346,7 +187,7 @@ void loadBatchImages(string& filePath, char separator = ';')
 
 }
 
-/*Initialize multiple PCA from given mat and labels*/
+/*Write all images to a file in format of a column vector*/
 void recordFaces()
 {
 	int labelCount = 1, dataStart = 0, faceCount = 1;
@@ -436,7 +277,7 @@ void initMassPCA(Mat faces, vector<int> label, vector<PCA>& pcas, string filePat
 
 }
 
-/*Write a given image to a file in the given path*/
+/*Write a given Mat to a file in the given path*/
 void writeMatToFile(Mat matrix, string filePath)
 {
 	try
@@ -521,7 +362,7 @@ int FaceRecog(Mat testImage, vector<PCA> PCAs)
 	return coeffMaxIndex;
 }
 
-/*Report Result of Face Recognition on every faces provided*/
+/*Predict the input face with the database*/
 int testFaceRecog(Mat greyImage)
 {
 	int result;
@@ -570,6 +411,7 @@ void testFaceRecog()
 	
 }
 
+/*Display image label around the detected face*/
 void showLabel(Rect_<int> faces, Mat img, string result)
 {
 	//string box_text = format("Prediction = %d", prediction);
@@ -589,7 +431,7 @@ int findLength(Mat testFace)
 	for (int i = 0; i<nFaces; i++)
 	{
 		//cout << faceVec.size() << " " << i << " " << faceVec.at(i).rows << "," << faceVec.at(i).rows << endl;
-		PCA facePca(faceVec.at(i), noArray(), CV_PCA_DATA_AS_COL, 0);
+		PCA facePca(faceVec.at(i), noArray(), CV_PCA_DATA_AS_COL, MAXIMUM_COMPONENTS_NUMBER);
 		double range = getRange(facePca, testFace);
 		cout << endl<< i << " " << range << endl;
 
@@ -600,7 +442,7 @@ int findLength(Mat testFace)
 		}
 	}
 	cout << endl;
-	return face+1;
+	return face;
 }
 
 /*Return the square sum of projected vectors*/
@@ -628,29 +470,9 @@ Mat getProjVec(Mat eigenVecFace, Mat testFace)
 	eigenVecFace.convertTo(eigenVecFace, CV_64FC1);
 	testFace.convertTo(testFace, CV_64FC1);
 	return eigenVecFace * testFace;
-
-	/*
-	try
-	{
-		Size eVFS = eigenVecFace.size();
-		Size inputFaceS = testFace.size();
-		Mat keepDotVal(eVFS.height, 1, CV_64F);
-		Size a = keepDotVal.size();
-		for (int i = 0; i < eVFS.height; i++)
-		{
-			float collect = 0.00;
-			for (int j = 0; j < eVFS.width; j++)
-			{
-				collect += eigenVecFace.at<float>(i, j)*testFace.at<float>(j, 0);
-			}
-			keepDotVal.col(0).row(i) = collect;
-		}
-		return keepDotVal;
-	}
-	
-	catch (Exception ex){}*/
 }
 
+/*Under Development*/
 /*Execute python script on selected path*/
 void runPythonScript(string filePath,string argument)
 {
@@ -661,4 +483,161 @@ void runPythonScript(string filePath,string argument)
 	//PyRun_SimpleString(app.c_str());
 
 	Py_Finalize();
+}
+
+/*Initialize and Start video capture device*/
+void startCamera()
+{
+	//setup video capture device and link it to the first capture device
+	VideoCapture captureDevice;
+	captureDevice.open(0);
+
+
+	//create the cascade classifier object used for the face detection
+	CascadeClassifier face_cas_alt2 = CascadeClassifier("C:\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt2.xml");
+	Mat captureFrame, tmp, grayscaleFrame;
+	std::vector<Rect> faces;
+	char keyPressed = 0;
+	bool isFace, newperson = true;
+	int picNum = 0;
+	String result = "Unknown";
+	//create a window to present the results
+	namedWindow("outputCapture", WINDOW_AUTOSIZE);
+	namedWindow("faceGray", WINDOW_AUTOSIZE);
+
+	//create a loop to capture and find faces
+	while (true)
+	{
+		try{
+			//capture a new image frame
+			captureDevice >> captureFrame;
+
+			//convert captured image to gray scale and equalize it
+			cvtColor(captureFrame, grayscaleFrame, CV_BGR2GRAY);
+			equalizeHist(grayscaleFrame, grayscaleFrame);
+
+			//create a vector array to store the face found 
+			//find faces and store them in the vector array
+			face_cas_alt2.detectMultiScale(grayscaleFrame, faces, 1.1, 3, 0, Size(75, 75), Size(300, 300));
+
+			//print the output
+			for (int i = 0; i < faces.size(); i++)
+			{
+				//Point pt1(faces[i].x + faces[i].width, faces[i].y + faces[i].height);
+				//Point pt2(faces[i].x, faces[i].y);
+				double percentage = 0.08;
+				double wMargin = faces[i].width * percentage, hMargin = faces[i].height * percentage;
+				Point pt1((faces[i].x) + (faces[i].width - wMargin), (faces[i].y) + (faces[i].height - hMargin));
+				Point pt2(faces[i].x + wMargin, faces[i].y + hMargin);
+
+				// select only <Mat> face image from Vector<Rect>faces
+				try{
+					//tmp = captureFrame;
+					//tmp = tmp.colRange(faces[i].x, faces[i].x + faces[i].width);
+					//tmp = tmp.rowRange(faces[i].y, faces[i].y + faces[i].height);
+
+
+					tmp = captureFrame;
+					tmp = tmp.colRange((faces[i].x + wMargin), (faces[i].x) + (faces[i].width - wMargin));
+					tmp = tmp.rowRange((faces[i].y + hMargin), (faces[i].y) + (faces[i].height - hMargin));
+
+					// tranform to grayScale
+					cvtColor(tmp, outputGray, CV_BGR2GRAY);
+					equalizeHist(outputGray, outputGray);
+
+
+
+
+				}
+				catch (exception ex){}
+
+				//show image
+				try {
+					imshow("faceGray", outputGray);
+					isFace = true;
+					cout << "Detection Face: Found!!! \tat x: " << faces[i].x << " and y: " << faces[i].y << '\n';
+				}
+				catch (exception ex){
+					cout << "file not match" << endl;
+				}
+				//draw a rectangle for all found faces in the vector array on the original image.
+				rectangle(captureFrame, pt1, pt2, cvScalar(0, 255, 0, 0), 1, 8, 0);
+				//draw a label for all found on upper left of the original image.
+
+
+				//DANGER
+				result = convertNum2String(testFaceRecog(outputGray));
+				showLabel(faces[i], captureFrame, result);
+
+			}
+			imshow("outputCapture", captureFrame);
+			//wait for key
+			// ESCAPE key to quit
+			// N key to capture a face with filename of the input name for 40 frames.
+			// I key to capture a face with filename of the input name indefinitely until press T
+			try{
+				if (_kbhit())
+				{
+					keyPressed = _getch();
+					if (keyPressed == VK_ESCAPE) {	// Check if the user hit the 'Escape' key
+						break;	// Stop processing input.
+					}
+
+					cout << keyPressed;
+
+					switch (keyPressed) {
+					case 'n':	// Add a new person to the training set.
+						if (newperson){
+							cout << '\n' << "Enter your name: ";
+							cin >> name;
+							newperson = false;
+						}
+						if (name.length() > 1 & isFace == true){
+							imwrite(camdir + name + to_string(picNum) + ".pgm", outputGray);
+							cout << '\n' << "Writing:" << camdir << picNum << "_" << name << ".pgm" << '\n';
+							picNum++;
+							isFace = false; //for checking new face
+							if (picNum >= 40)
+							{
+								keyPressed = 't';
+							}
+						}
+						break;
+					case 't':	// Start training or stop write picture
+						cout << "Recognizing person in the camera ..." << '\n';
+						picNum = 0;
+						keyPressed = 0;
+						newperson = true;
+						name.clear();
+						break;
+					case 'i':	// get picture infinite until press any key
+						if (newperson){
+							cout << '\n' << "Enter your name: ";
+							cin >> name;
+							newperson = false;
+						}
+						if (name.length() > 1 & isFace == true){
+							imwrite(camdir + name + to_string(picNum) + ".pgm", outputGray);
+							cout << '\n' << "Writing:" << camdir << picNum << "_" << name << ".pgm" << '\n';
+							picNum++;
+							isFace = false; //for checking new face
+						}
+						break;
+					}
+				}
+
+			}
+			catch (exception ex){
+			}
+			// wait for 40 ms
+			waitKey(40);
+
+			//destroy result of detection window
+			destroyWindow("faceGray");
+
+		}
+		catch (exception ex){
+			cout << "exception No. UNKNOWN" << '\n';
+		}
+	}
 }
