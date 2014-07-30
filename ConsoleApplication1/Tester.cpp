@@ -54,8 +54,9 @@ int nFaces = 0;
 
 // Variable for debugging
 int loopCount = 0;
+bool doFaceRecog = true;
 
-int MAXIMUM_COMPONENTS_NUMBER = 6; // The amount of PCA components
+int MAXIMUM_COMPONENTS_NUMBER = 200; // The amount of PCA components
 
 Size DEFAULT_IMAGE_SIZE(30, 30); // Dafault dimension for faces in the database
 string indir = "C:\\camface\\";
@@ -371,7 +372,7 @@ int testFaceRecog(Mat greyImage)
 	result = findLength(greyImage.reshape(1,1).t());
 
 
-	cout << "The face has been recognized as Face Number : " << result << endl;
+	cout << "The face has been recognized as Face Number : " << result + 1 << endl;
 	return result;
 }
 
@@ -433,7 +434,7 @@ int findLength(Mat testFace)
 		//cout << faceVec.size() << " " << i << " " << faceVec.at(i).rows << "," << faceVec.at(i).rows << endl;
 		PCA facePca(faceVec.at(i), noArray(), CV_PCA_DATA_AS_COL, MAXIMUM_COMPONENTS_NUMBER);
 		double range = getRange(facePca, testFace);
-		cout << endl<< i << " " << range << endl;
+		cout << endl<< i + 1 << " " << range << endl;
 
 		if (range > sum)
 		{
@@ -525,13 +526,14 @@ void startCamera()
 			{
 				//Point pt1(faces[i].x + faces[i].width, faces[i].y + faces[i].height);
 				//Point pt2(faces[i].x, faces[i].y);
-				double percentage = 0.08;
+				double percentage = 0.15;
 				double wMargin = faces[i].width * percentage, hMargin = faces[i].height * percentage;
 				Point pt1((faces[i].x) + (faces[i].width - wMargin), (faces[i].y) + (faces[i].height - hMargin));
 				Point pt2(faces[i].x + wMargin, faces[i].y + hMargin);
 
 				// select only <Mat> face image from Vector<Rect>faces
 				try{
+					//Un-Cropped output
 					//tmp = captureFrame;
 					//tmp = tmp.colRange(faces[i].x, faces[i].x + faces[i].width);
 					//tmp = tmp.rowRange(faces[i].y, faces[i].y + faces[i].height);
@@ -565,8 +567,8 @@ void startCamera()
 				//draw a label for all found on upper left of the original image.
 
 
-				//DANGER
-				result = convertNum2String(testFaceRecog(outputGray));
+				//Do face recognition on datected face
+				if(doFaceRecog)result = convertNum2String(1 + testFaceRecog(outputGray));
 				showLabel(faces[i], captureFrame, result);
 
 			}
