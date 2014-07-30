@@ -56,7 +56,7 @@ int nFaces = 0;
 int loopCount = 0;
 bool doFaceRecog = true;
 
-int MAXIMUM_COMPONENTS_NUMBER = 200; // The amount of PCA components
+int MAXIMUM_COMPONENTS_NUMBER = 2; // The amount of PCA components
 
 Size DEFAULT_IMAGE_SIZE(30, 30); // Dafault dimension for faces in the database
 string indir = "C:\\camface\\";
@@ -433,6 +433,19 @@ int findLength(Mat testFace)
 	{
 		//cout << faceVec.size() << " " << i << " " << faceVec.at(i).rows << "," << faceVec.at(i).rows << endl;
 		PCA facePca(faceVec.at(i), noArray(), CV_PCA_DATA_AS_COL, MAXIMUM_COMPONENTS_NUMBER);
+		
+		//Create Average Image
+		Mat meanImg = Mat::ones(1, 30, CV_32F);;
+		Mat meanVec = facePca.mean;
+		for (int j = 0; j < 30; j++)
+		{
+			vconcat(meanImg, meanVec.rowRange(30 * j, 30 * (j + 1)).t(), meanImg);
+		}
+		meanImg.convertTo(meanImg, CV_16S);
+		meanImg = meanImg.rowRange(1, meanImg.rows);
+		imwrite(camdir + "PCA" + to_string(i) + ".jpg", meanImg);
+		writeMatToFile(meanImg, camdir + "PCA" + to_string(i) + ".txt");
+		
 		double range = getRange(facePca, testFace);
 		cout << endl<< i + 1 << " " << range << endl;
 
